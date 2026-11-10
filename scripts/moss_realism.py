@@ -37,6 +37,26 @@ def fingerprint(filename):
         raise ValueError(f"Forge could not read {Path(filename).name}. Refresh the model list and select the file again.") from error
 
 
+def _skip_incompatible(p, checkpoint):
+    name = Path(getattr(checkpoint, "filename", "") or "selected checkpoint").name
+    message = (
+        f"MOSS Base Realism skipped: {name} is not the verified MOSS-Image Base INT8 ConvRot checkpoint. "
+        "Normal Forge generation will continue with the selected model."
+    )
+    p.extra_generation_params["MOSS Base Realism"] = "Skipped: incompatible checkpoint"
+    try:
+        import gradio as gr
+        gr.Warning(message)
+    except Exception:
+        pass
+    print(f"[MOSS Base Realism] {message}")
+    # Native Generate falls through on None; Forge's selectable-script API
+    # expects a Processed object and has no corresponding fallback.
+    if getattr(p, "is_api", False):
+        return processing.process_images(p)
+    return None
+
+
 class MossRealism(scripts.Script):
     def title(self):
         return TITLE
@@ -48,6 +68,12 @@ class MossRealism(scripts.Script):
         return []
 
     def run(self, p, *args):
+        override = getattr(p, "override_settings", None) or {}
+        checkpoint_name = override.get("sd_model_checkpoint", shared.opts.sd_model_checkpoint)
+        checkpoint = sd_models.checkpoint_aliases.get(checkpoint_name)
+        if checkpoint is None or fingerprint(checkpoint.filename) != BASE:
+            return _skip_incompatible(p, checkpoint)
+
         if (
             "ER SDE" not in sd_samplers.all_samplers_map
             or "Simple" not in sd_schedulers.schedulers_map
@@ -89,11 +115,6 @@ class MossRealism(scripts.Script):
             if failed:
                 raise ValueError(f"Forge previously failed to load these adapters: {', '.join(sorted(failed))}. Refresh the Lora list after correcting the files.")
 
-        checkpoint_name = p.override_settings.get("sd_model_checkpoint", shared.opts.sd_model_checkpoint)
-        checkpoint = sd_models.checkpoint_aliases.get(checkpoint_name)
-        if checkpoint is None or fingerprint(checkpoint.filename) != BASE:
-            raise ValueError("Choose the Comfy-Org MOSS-Image Base INT8 ConvRot checkpoint.")
-
         modules = p.override_settings.get("forge_additional_modules", shared.opts.forge_additional_modules)
         if not isinstance(modules, (list, tuple)) or len(modules) != 2 or not all(isinstance(module, str) for module in modules):
             raise ValueError("Select exactly two modules, the MOSS Qwen3.5 9B encoder and FLUX.2 VAE.")
@@ -119,6 +140,7 @@ class MossRealism(scripts.Script):
         p.styles = []
         p.enable_hr = False
         p.refiner_checkpoint = None
+        p._pi_refiner = None
         p.extra_generation_params.update({
             "Script": TITLE,
             "MOSS Realism Encoder": ENCODERS[next(iter(encoders))],
