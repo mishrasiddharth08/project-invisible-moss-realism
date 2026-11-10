@@ -15,6 +15,7 @@
       <text x="56" y="100">Checkpoint</text>
       <text x="536" y="100">VAE / Text Encoder</text>
       <text x="56" y="222">Prompt</text>
+      <text x="58" y="369">Width · Height · Batch count · Batch size</text>
       <text x="58" y="388">Script</text>
     </g>
     <g font-size="17">

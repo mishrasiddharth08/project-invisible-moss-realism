@@ -57,10 +57,37 @@ class MossRealism(scripts.Script):
         if getattr(p, "txt2img_upscale", False):
             raise ValueError("MOSS Base Realism is a single-pass preset. Use Generate for a new image.")
 
+        if any(dimension < 64 or dimension % 16 for dimension in (p.width, p.height)):
+            raise ValueError("Set Width and Height to multiples of 16, each at least 64 pixels.")
+        if p.batch_size < 1 or p.n_iter < 1:
+            raise ValueError("Set Batch count and Batch size to at least 1.")
+
         prompts = p.prompt if isinstance(p.prompt, list) else [p.prompt]
-        has_adapters = any("lora" in extra_networks.parse_prompt(prompt or "")[1] for prompt in prompts)
-        if has_adapters and (p.disable_extra_networks or "lora" not in extra_networks.extra_network_registry):
-            raise ValueError("Enable Forge's built-in LoRA extension and allow extra networks to use LoRA or LoKr tags.")
+        adapter_names = {
+            tag.positional[0]
+            for prompt in prompts
+            for tag in extra_networks.parse_prompt(prompt or "")[1].get("lora", ())
+            if tag.positional
+        }
+        if adapter_names:
+            if p.disable_extra_networks or "lora" not in extra_networks.extra_network_registry:
+                raise ValueError("Enable Forge's built-in LoRA extension and allow extra networks to use LoRA or LoKr tags.")
+            import networks
+
+            def missing_adapters():
+                return adapter_names - networks.available_networks.keys() - {
+                    name for name in networks.available_network_aliases
+                    if name.lower() not in networks.forbidden_network_aliases
+                }
+
+            if missing_adapters():
+                networks.list_available_networks()
+                missing = missing_adapters()
+                if missing:
+                    raise ValueError(f"Forge could not find these LoRA or LoKr adapters: {', '.join(sorted(missing))}.")
+            failed = adapter_names & networks.failed_networks.keys()
+            if failed:
+                raise ValueError(f"Forge previously failed to load these adapters: {', '.join(sorted(failed))}. Refresh the Lora list after correcting the files.")
 
         checkpoint_name = p.override_settings.get("sd_model_checkpoint", shared.opts.sd_model_checkpoint)
         checkpoint = sd_models.checkpoint_aliases.get(checkpoint_name)
@@ -84,8 +111,6 @@ class MossRealism(scripts.Script):
         p.cfg_scale = 3.0
         p.distilled_cfg_scale = 5.0
         p.s_min_uncond = 0.0
-        p.width, p.height = 1184, 1776
-        p.batch_size = p.n_iter = 1
         if p.seed in (-1, "-1", None):
             p.seed = 855373723910865
         p.subseed_strength = 0.0

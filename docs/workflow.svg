@@ -22,8 +22,8 @@
       <text x="410" y="240">ER SDE · Simple · 25 steps</text>
       <text x="410" y="267">CFG 3 · shift 5 · noise 1.1</text>
       <text x="410" y="294">Skip layers 22 and 24</text>
-      <text x="762" y="240">1184 × 1776 portrait</text>
-      <text x="762" y="267">One image per run</text>
+      <text x="762" y="240">Your width and height</text>
+      <text x="762" y="267">Batch count × batch size</text>
       <text x="762" y="294">Forge gallery and saved settings</text>
     </g>
     <text x="38" y="367" fill="#b3c3cd" font-size="15">txt2img → Script → MOSS Base Realism → Generate</text>
