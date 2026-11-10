@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="390" viewBox="0 0 1080 390" role="img" aria-labelledby="title">
+  <title id="title">MOSS Base Realism workflow for Forge Neo</title>
+  <rect width="1080" height="390" rx="24" fill="#101821"/>
+  <g font-family="system-ui, sans-serif">
+    <text x="38" y="49" fill="#91e1b5" font-size="14" font-weight="700" letter-spacing="3">PROJECT INVISIBLE</text>
+    <text x="38" y="101" fill="#f4faf8" font-size="42" font-weight="700">MOSS Base Realism</text>
+    <text x="38" y="135" fill="#b3c3cd" font-size="20">The shared ComfyUI recipe in Forge Neo’s text-to-image workflow</text>
+    <g fill="#1b2935" stroke="#354a59">
+      <rect x="38" y="169" width="300" height="167" rx="14"/>
+      <rect x="390" y="169" width="300" height="167" rx="14"/>
+      <rect x="742" y="169" width="300" height="167" rx="14"/>
+    </g>
+    <g font-size="19" font-weight="700" fill="#91e1b5">
+      <text x="58" y="205">01 · Select the model</text>
+      <text x="410" y="205">02 · Apply the recipe</text>
+      <text x="762" y="205">03 · Generate</text>
+    </g>
+    <g fill="#e1ebf1" font-size="17">
+      <text x="58" y="240">MOSS-Image Base INT8</text>
+      <text x="58" y="267">Qwen3.5 9B text encoder</text>
+      <text x="58" y="294">FLUX.2 VAE</text>
+      <text x="410" y="240">ER SDE · Simple · 25 steps</text>
+      <text x="410" y="267">CFG 3 · shift 5 · noise 1.1</text>
+      <text x="410" y="294">Skip layers 22 and 24</text>
+      <text x="762" y="240">1184 × 1776 portrait</text>
+      <text x="762" y="267">One image per run</text>
+      <text x="762" y="294">Forge gallery and saved settings</text>
+    </g>
+    <text x="38" y="367" fill="#b3c3cd" font-size="15">txt2img → Script → MOSS Base Realism → Generate</text>
+  </g>
+  <path d="M350 252h28m-8-8 8 8-8 8m332-8h28m-8-8 8 8-8 8" fill="none" stroke="#91e1b5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

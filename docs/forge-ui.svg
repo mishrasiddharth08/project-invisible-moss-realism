@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="560" viewBox="0 0 1080 560" role="img" aria-labelledby="title">
+  <title id="title">Illustrated Forge Neo interface with MOSS Base Realism selected</title>
+  <rect width="1080" height="560" rx="24" fill="#101821"/>
+  <g font-family="system-ui, sans-serif" fill="#f4faf8">
+    <text x="38" y="49" font-size="24" font-weight="700">Forge Neo</text>
+    <text x="1042" y="49" text-anchor="end" fill="#b3c3cd" font-size="15">ILLUSTRATED UI PREVIEW</text>
+    <g fill="#1b2935" stroke="#354a59">
+      <rect x="38" y="76" width="466" height="61" rx="10"/>
+      <rect x="518" y="76" width="524" height="61" rx="10"/>
+      <rect x="38" y="196" width="756" height="90" rx="10"/>
+      <rect x="38" y="309" width="488" height="208" rx="10"/>
+      <rect x="546" y="309" width="496" height="208" rx="10"/>
+    </g>
+    <g fill="#b3c3cd" font-size="14">
+      <text x="56" y="100">Checkpoint</text>
+      <text x="536" y="100">VAE / Text Encoder</text>
+      <text x="56" y="222">Prompt</text>
+      <text x="58" y="388">Script</text>
+    </g>
+    <g font-size="17">
+      <text x="56" y="123">moss_image_base_int8_convrot.safetensors</text>
+      <text x="536" y="123">FLUX.2 VAE · Qwen3.5 9B for MOSS</text>
+      <text x="56" y="254">Candid 35mm portrait at a rainy flower market</text>
+    </g>
+    <rect x="38" y="153" width="98" height="31" rx="7" fill="#274238"/>
+    <text x="56" y="175" fill="#a4edc6" font-size="16" font-weight="700">txt2img</text>
+    <text x="152" y="175" fill="#b3c3cd" font-size="16">img2img</text>
+    <rect x="812" y="196" width="230" height="58" rx="10" fill="#91e1b5"/>
+    <text x="927" y="232" text-anchor="middle" fill="#11231d" font-size="21" font-weight="700">Generate</text>
+    <text x="58" y="345" font-size="19" font-weight="700">Generation</text>
+    <rect x="58" y="400" width="448" height="48" rx="8" fill="#13251e" stroke="#91e1b5" stroke-width="2"/>
+    <text x="74" y="430" fill="#a4edc6" font-size="18" font-weight="700">MOSS Base Realism</text>
+    <path d="m478 420 7 7 7-7" fill="none" stroke="#91e1b5" stroke-width="2"/>
+    <text x="58" y="486" fill="#b3c3cd" font-size="15">Choose the recipe from Forge’s existing Script menu.</text>
+    <text x="570" y="345" font-size="19" font-weight="700">Gallery</text>
+    <rect x="736" y="362" width="115" height="132" rx="8" fill="#203a33" stroke="#59776e"/>
+    <path d="m752 474 31-44 21 23 14-14 17 35z" fill="#83c5a5"/>
+    <circle cx="818" cy="395" r="11" fill="#edc579"/>
+  </g>
+</svg>
