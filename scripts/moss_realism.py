@@ -2,7 +2,7 @@ from functools import lru_cache, partial
 from pathlib import Path
 
 from k_diffusion import sampling
-from modules import hashes, processing, scripts, sd_models, sd_samplers, shared
+from modules import extra_networks, hashes, processing, scripts, sd_models, sd_samplers, sd_schedulers, shared
 from modules_forge import main_entry
 
 
@@ -19,6 +19,7 @@ OPTIONS = {
     "slg_start_percent": 0.0,
     "slg_end_percent": 1.0,
     "always_discard_next_to_last_sigma": False,
+    "skip_early_cond": 0.0,
 }
 
 
@@ -28,9 +29,12 @@ def _hash_file(path, size, modified_ns, changed_ns):
 
 
 def fingerprint(filename):
-    path = Path(filename).resolve(strict=True)
-    stat = path.stat()
-    return _hash_file(path, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+    try:
+        path = Path(filename).resolve(strict=True)
+        stat = path.stat()
+        return _hash_file(path, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+    except OSError as error:
+        raise ValueError(f"Forge could not read {Path(filename).name}. Refresh the model list and select the file again.") from error
 
 
 class MossRealism(scripts.Script):
@@ -44,8 +48,19 @@ class MossRealism(scripts.Script):
         return []
 
     def run(self, p, *args):
-        if "ER SDE" not in sd_samplers.all_samplers_map or not OPTIONS.keys() <= shared.opts.data_labels.keys():
-            raise RuntimeError("MOSS Base Realism requires Forge Neo with native ER SDE and skip-layer guidance.")
+        if (
+            "ER SDE" not in sd_samplers.all_samplers_map
+            or "Simple" not in sd_schedulers.schedulers_map
+            or not OPTIONS.keys() <= shared.opts.data_labels.keys()
+        ):
+            raise RuntimeError("MOSS Base Realism requires Forge Neo with ER SDE, the Simple scheduler and skip-layer guidance.")
+        if getattr(p, "txt2img_upscale", False):
+            raise ValueError("MOSS Base Realism is a single-pass preset. Use Generate for a new image.")
+
+        prompts = p.prompt if isinstance(p.prompt, list) else [p.prompt]
+        has_adapters = any("lora" in extra_networks.parse_prompt(prompt or "")[1] for prompt in prompts)
+        if has_adapters and (p.disable_extra_networks or "lora" not in extra_networks.extra_network_registry):
+            raise ValueError("Enable Forge's built-in LoRA extension and allow extra networks to use LoRA or LoKr tags.")
 
         checkpoint_name = p.override_settings.get("sd_model_checkpoint", shared.opts.sd_model_checkpoint)
         checkpoint = sd_models.checkpoint_aliases.get(checkpoint_name)
@@ -53,6 +68,8 @@ class MossRealism(scripts.Script):
             raise ValueError("Choose the Comfy-Org MOSS-Image Base INT8 ConvRot checkpoint.")
 
         modules = p.override_settings.get("forge_additional_modules", shared.opts.forge_additional_modules)
+        if not isinstance(modules, (list, tuple)) or len(modules) != 2 or not all(isinstance(module, str) for module in modules):
+            raise ValueError("Select exactly two modules, the MOSS Qwen3.5 9B encoder and FLUX.2 VAE.")
         selected = {Path(module).name for module in modules}
         if len(selected) != 2 or not selected <= main_entry.module_list.keys() or "sd_vae" in p.override_settings:
             raise ValueError("Select only the MOSS Qwen3.5 9B encoder and FLUX.2 VAE.")
@@ -66,6 +83,7 @@ class MossRealism(scripts.Script):
         p.steps = 25
         p.cfg_scale = 3.0
         p.distilled_cfg_scale = 5.0
+        p.s_min_uncond = 0.0
         p.width, p.height = 1184, 1776
         p.batch_size = p.n_iter = 1
         if p.seed in (-1, "-1", None):
@@ -74,7 +92,6 @@ class MossRealism(scripts.Script):
         p.seed_resize_from_w = p.seed_resize_from_h = -1
         p.negative_prompt = ""
         p.styles = []
-        p.disable_extra_networks = True
         p.enable_hr = False
         p.refiner_checkpoint = None
         p.extra_generation_params.update({
@@ -82,8 +99,11 @@ class MossRealism(scripts.Script):
             "MOSS Realism Encoder": ENCODERS[next(iter(encoders))],
         })
         p._moss_realism = True
-        missing_options = OPTIONS.keys() - shared.opts.data.keys()
-        p.override_settings.update(OPTIONS)
+        recipe_options = OPTIONS.copy()
+        if "sd_lora" in shared.opts.data_labels:
+            recipe_options["sd_lora"] = "None"
+        missing_options = recipe_options.keys() - shared.opts.data.keys()
+        p.override_settings.update(recipe_options)
         p.override_settings_restore_afterwards = True
         try:
             return processing.process_images(p)
