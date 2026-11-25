@@ -1,5 +1,8 @@
+from collections import Counter
+from contextlib import ExitStack, contextmanager
 from functools import lru_cache, partial
 from pathlib import Path
+from unittest.mock import patch
 
 from k_diffusion import sampling
 from modules import extra_networks, hashes, processing, scripts, sd_models, sd_samplers, sd_schedulers, shared
@@ -57,6 +60,64 @@ def _skip_incompatible(p, checkpoint):
     return None
 
 
+def batch_tags(prompts):
+    groups = [extra_networks.parse_prompt(prompt or "")[1].get("lora", []) for prompt in prompts]
+    if any(group != groups[0] for group in groups[1:]):
+        raise ValueError("Use the same LoRA or LoKr tags and weights for every image in a batch, or use Batch size 1.")
+    return groups[0] if groups else []
+
+
+@contextmanager
+def verify_adapters(p, networks):
+    # Forge serializes generation. Its ordinary script hooks swallow exceptions,
+    # so check this request directly between native activation and conditioning.
+    parse = p.parse_extra_network_prompts
+    setup = p.setup_conds
+    load = networks.load_lora_for_models
+    expected = {}
+    applied = Counter()
+    last_batch = None
+    signature = None
+
+    def track(model, clip, lora, strength_model, strength_clip, filename="default", online_mode=False):
+        result = load(model, clip, lora, strength_model, strength_clip, filename, online_mode)
+        if result[0] is not model or result[1] is not clip:
+            applied[Path(filename).resolve()] += 1
+        return result
+
+    def before_activation():
+        nonlocal signature, expected
+        tags = batch_tags(p.prompts)
+        signature = tuple(tuple(tag.items) for tag in tags)
+        expected = {}
+        for tag in tags:
+            name = tag.positional[0]
+            registry = networks.available_networks if name.lower() in networks.forbidden_network_aliases else networks.available_network_aliases
+            if name not in registry:
+                raise ValueError(f"Forge could not find adapter: {name}")
+            expected.setdefault(Path(registry[name].filename).resolve(), []).append(name)
+        if last_batch != (p.sd_model, signature, p.sd_model.current_lora_hash):
+            applied.clear()
+            if tags:
+                p.sd_model.current_lora_hash = None
+        return parse()
+
+    def after_activation():
+        nonlocal last_batch
+        missing = [name for path, names in expected.items() if applied[path] < len(names) for name in names]
+        if missing:
+            p.sd_model.current_lora_hash = None
+            raise ValueError(f"Forge could not apply these adapters to MOSS Base: {', '.join(missing)}.")
+        last_batch = (p.sd_model, signature, p.sd_model.current_lora_hash)
+        return setup()
+
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(networks, "load_lora_for_models", track))
+        stack.enter_context(patch.object(p, "parse_extra_network_prompts", before_activation))
+        stack.enter_context(patch.object(p, "setup_conds", after_activation))
+        yield
+
+
 class MossRealism(scripts.Script):
     def title(self):
         return TITLE
@@ -91,8 +152,8 @@ class MossRealism(scripts.Script):
         prompts = p.prompt if isinstance(p.prompt, list) else [p.prompt]
         adapter_names = {
             tag.positional[0]
-            for prompt in prompts
-            for tag in extra_networks.parse_prompt(prompt or "")[1].get("lora", ())
+            for start in range(0, len(prompts), p.batch_size)
+            for tag in batch_tags(prompts[start:start + p.batch_size])
             if tag.positional
         }
         if adapter_names:
@@ -118,10 +179,10 @@ class MossRealism(scripts.Script):
         modules = p.override_settings.get("forge_additional_modules", shared.opts.forge_additional_modules)
         if not isinstance(modules, (list, tuple)) or len(modules) != 2 or not all(isinstance(module, str) for module in modules):
             raise ValueError("Select exactly two modules, the MOSS Qwen3.5 9B encoder and FLUX.2 VAE.")
-        selected = {Path(module).name for module in modules}
-        if len(selected) != 2 or not selected <= main_entry.module_list.keys() or "sd_vae" in p.override_settings:
+        if "sd_vae" in p.override_settings:
             raise ValueError("Select only the MOSS Qwen3.5 9B encoder and FLUX.2 VAE.")
-        components = {fingerprint(main_entry.module_list[name]) for name in selected}
+        paths = [str(Path(main_entry.module_list.get(module, module)).resolve()) for module in modules]
+        components = {fingerprint(path) for path in paths}
         encoders = components & ENCODERS.keys()
         if VAE not in components or not encoders:
             raise ValueError("Select the matching MOSS Qwen3.5 9B encoder and FLUX.2 VAE listed in the README.")
@@ -151,9 +212,14 @@ class MossRealism(scripts.Script):
             recipe_options["sd_lora"] = "None"
         missing_options = recipe_options.keys() - shared.opts.data.keys()
         p.override_settings.update(recipe_options)
+        if "forge_additional_modules" in p.override_settings or list(modules) != paths:
+            p.override_settings["forge_additional_modules"] = paths
         p.override_settings_restore_afterwards = True
         try:
-            return processing.process_images(p)
+            with ExitStack() as stack:
+                if adapter_names:
+                    stack.enter_context(verify_adapters(p, networks))
+                return processing.process_images(p)
         finally:
             for name in missing_options:
                 shared.opts.data.pop(name, None)
